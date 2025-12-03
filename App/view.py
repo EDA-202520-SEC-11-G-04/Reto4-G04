@@ -290,12 +290,92 @@ def load_data(control):
     return control
 
 
+def _format_req2_row(detail_dict):
+    
+    """
+    Helper para formatear filas del req_2
+    """
+    
+    dist_val = detail_dict['dist_next']
+    if isinstance(dist_val, (int, float)) and dist_val > 0:
+        dist_s = f"{dist_val:.4f}"
+    else:
+        dist_s = "-"
+    
+    return [
+        detail_dict['id'],
+        f"({detail_dict['lat']:.4f}, {detail_dict['lon']:.4f})",
+        detail_dict['birds_count'],
+        detail_dict['birds_sample'],
+        dist_s
+    ]
+
 def print_req_2(control):
     """
-        Función que imprime la solución del Requerimiento 2 en consola
+    View para el req_2
     """
-    # TODO: Imprimir el resultado del requerimiento 2
-    pass
+    print("\n" + "="*60)
+    print("REQ. 2: Detectar movimientos alrededor de un área (BFS)")
+    print("="*60)
+    
+    if control is None or 'graph_dist' not in control:
+        print("Error: Debe cargar los datos primero.")
+        return
+    
+    try:
+        print("Ingrese coordenadas (Deje vacío para usar valores por defecto):")
+        
+        l_org = input("Latitud Origen (ej: 48.47): ")
+        lat_org = float(l_org) if l_org else 48.47
+        
+        l_lon = input("Longitud Origen (ej: 110.94): ")
+        lon_org = float(l_lon) if l_lon else 110.94
+        
+        l_dest = input("Latitud Destino (ej: 21.91): ")
+        lat_dest = float(l_dest) if l_dest else 21.91
+        
+        l_dlon = input("Longitud Destino (ej: 69.45): ")
+        lon_dest = float(l_dlon) if l_dlon else 69.45
+        
+        radius = input("Radio del área de interés en km (ej: 50): ")
+        radius_km = float(radius) if radius else 50.0
+        
+        result = logic.req_2(
+            control,
+            lat_org, lon_org,
+            lat_dest, lon_dest,
+            radius_km
+        )
+        
+        if "error" in result:
+            print(f"\n[!] {result['error']}")
+            return
+        
+        # Mostrar resumen
+        print(f"\n> {result['message']}")
+        print(f"> Distancia total estimada:   {result['total_dist']:.4f} km")
+        print(f"> Total de puntos en camino:  {result['total_steps']}")
+        
+        # Preparar resultados
+        details = result['details']
+        headers = ["ID Punto", "Posición", "Num. Indiv.", "Muestra IDs", "Dist. Sig. (km)"]
+        
+        table_data = []
+        
+        if len(details) <= 10:
+            table_data = [_format_req2_row(d) for d in details]
+        else:
+            table_data.extend([_format_req2_row(d) for d in details[:5]])
+            table_data.append(["...", "...", "...", "...", "..."])
+            table_data.extend([_format_req2_row(d) for d in details[-5:]])
+        
+        print("\n--- Detalle de la Ruta (Primeros y Últimos) ---")
+        print(tabulate(table_data, headers=headers, tablefmt="fancy_grid"))
+        
+    except ValueError:
+        print("Error: Las coordenadas y radio deben ser numéricos.")
+    except Exception as e:
+        print(f"Error inesperado: {e}")
 
 
 def print_req_3(control):

@@ -9,6 +9,9 @@ from DataStructures.Graph import vertex as v
 from DataStructures.Graph import digraph as graph
 from DataStructures.Graph import dfs
 from DataStructures.Graph import prim_structure as prim
+from DataStructures.Graph import bfs
+from DataStructures.Graph import dijsktra_structure as dijkstra
+from DataStructures.Stack import stack as st
 
 # --- FONCTIONS UTILITAIRES (GÉOMÉTRIE & TEMPS) ---
 
@@ -323,13 +326,74 @@ def req_1(catalog, lat_org, lon_org, lat_dest, lon_dest, crane_id):
         "total_steps": len(path_ids),
         "details": path_details
     }
-
-def req_2(catalog):
+    
+def req_2(catalog, lat_org, lon_org, lat_dest, lon_dest, radius_km):
     """
-    Retorna el resultado del requerimiento 2
+    Ejecuta BFS considerando un radio de área de interés.
+    
+    Args:
+        catalog: Catálogo con los grafos
+        lat_org, lon_org: Coordenadas de origen
+        lat_dest, lon_dest: Coordenadas de destino
+        radius_km: Radio del área de interés en km
+    
+    Returns:
+        dict con resultados o error
     """
-    # TODO: Modificar el requerimiento 2
-    pass
+    if bfs is None:
+        return {"error": "Módulo BFS no disponible."}
+    
+    graph_obj = catalog["graph_dist"]
+    
+    # Encontrar nodos cercanos
+    start_node, dist_start = get_closest_node(catalog, lat_org, lon_org)
+    end_node, dist_end = get_closest_node(catalog, lat_dest, lon_dest)
+    
+    if not start_node or not end_node:
+        return {"error": "No se encontraron nodos cercanos a las coordenadas."}
+    
+    # Ejecutar BFS
+    search_result = bfs.bfs(graph_obj, start_node)
+    
+    # Recuperar el camino completo
+    path_ids = bfs.path_to(search_result, end_node)
+    
+    if path_ids is None:
+        return {"error": f"No existe camino BFS entre {start_node} y {end_node}."}
+    
+    # Obtener información del nodo origen
+    vertex_start = mp.get(graph_obj['vertices'], start_node)
+    start_info = vertex_start['value']
+    start_lat = start_info['lat']
+    start_lon = start_info['lon']
+    
+    last_node_in_area = start_node
+    
+    for node_id in path_ids:
+        vertex_entry = mp.get(graph_obj['vertices'], node_id)
+        if not vertex_entry:
+            continue
+        
+        node_info = vertex_entry['value']
+        dist_from_origin = haversine(start_lat, start_lon, node_info['lat'], node_info['lon'])
+        
+        if dist_from_origin <= radius_km:
+            last_node_in_area = node_id
+        else:
+            break
+    
+    # Organizar el camino
+    path_details, total_dist = _build_path_details(graph_obj, path_ids)
+    
+    msg = f"Último nodo en área de {radius_km} km: {last_node_in_area}"
+    
+    return {
+        "message": msg,
+        "last_in_area": last_node_in_area,
+        "total_dist": total_dist,
+        "total_steps": len(path_ids),
+        "details": path_details
+    }
 
 
 def req_3(catalog):
