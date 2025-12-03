@@ -471,22 +471,176 @@ def print_req_4(control):
         print(f"Error inesperado: {e}")
 
 
+def _format_req5_row(detail_dict):
+    """
+    Helper para formatear filas del req_5
+    """
+    dist_val = detail_dict['dist_next']
+    if isinstance(dist_val, (int, float)) and dist_val > 0:
+        dist_s = f"{dist_val:.4f}"
+    else:
+        dist_s = "-"
+    
+    return [
+        detail_dict['id'],
+        f"({detail_dict['lat']:.4f}, {detail_dict['lon']:.4f})",
+        detail_dict['birds_count'],
+        detail_dict['birds_sample'],
+        dist_s
+    ]
+
 def print_req_5(control):
     """
-        Función que imprime la solución del Requerimiento 5 en consola
+    Vista para el Requisito 5: Ruta migratoria más eficiente (Dijkstra).
     """
-    # TODO: Imprimir el resultado del requerimiento 5
-    pass
+    print("\n" + "="*60)
+    print("REQ. 5: Ruta migratoria más eficiente (Dijkstra)")
+    print("="*60)
+    
+    if control is None or 'graph_dist' not in control:
+        print("Error: Debe cargar los datos primero.")
+        return
+    
+    try:
+        print("Ingrese coordenadas (Deje vacío para usar valores por defecto):")
+        
+        l_org = input("Latitud Origen (ej: 48.47): ")
+        lat_org = float(l_org) if l_org else 48.47
+        
+        l_lon = input("Longitud Origen (ej: 110.94): ")
+        lon_org = float(l_lon) if l_lon else 110.94
+        
+        l_dest = input("Latitud Destino (ej: 21.91): ")
+        lat_dest = float(l_dest) if l_dest else 21.91
+        
+        l_dlon = input("Longitud Destino (ej: 69.45): ")
+        lon_dest = float(l_dlon) if l_dlon else 69.45
+        
+        print("\nSeleccione tipo de grafo:")
+        print("1. Distancia de desplazamiento")
+        print("2. Distancia a fuentes hídricas")
+        graph_choice = input("Opción (1 o 2): ")
+        
+        graph_type = "water" if graph_choice == "2" else "dist"
+        result = logic.req_5(
+            control,
+            lat_org, lon_org,
+            lat_dest, lon_dest,
+            graph_type
+        )
+        
+        if "error" in result:
+            print(f"\n[!] {result['error']}")
+            return
+        
+        # Mostrar resumen
+        print(f"\n> {result['message']}")
+        print(f"> Tipo de grafo:               {result['cost_label']}")
+        print(f"> Costo total:                 {result['total_cost']:.4f} km")
+        print(f"> Total de nodos:              {result['total_nodes']}")
+        print(f"> Total de segmentos (arcos):  {result['total_edges']}")
+        
+        # Ordenar respuesta
+        details = result['details']
+        headers = ["ID Punto", "Posición", "Num. Indiv.", "Muestra IDs", "Dist. Sig. (km)"]
+        
+        table_data = []
+        
+        if len(details) <= 10:
+            table_data = [_format_req5_row(d) for d in details]
+        else:
+            table_data.extend([_format_req5_row(d) for d in details[:5]])
+            table_data.append(["...", "...", "...", "...", "..."])
+            table_data.extend([_format_req5_row(d) for d in details[-5:]])
+        
+        print("\n--- Detalle de la Ruta Óptima (Primeros y Últimos) ---")
+        print(tabulate(table_data, headers=headers, tablefmt="fancy_grid"))
+        
+    except ValueError:
+        print("Error: Las coordenadas deben ser numéricas.")
+    except Exception as e:
+        print(f"Error inesperado: {e}")
 
+
+def _format_req6_component(graph, component_data):
+    """Helper para formatear una subred completa."""
+    comp_id = component_data['component_id']
+    total = component_data['total_nodes']
+    
+    # Límites geográficos
+    bounds = f"Lat: [{component_data['min_lat']:.4f}, {component_data['max_lat']:.4f}]"
+    bounds += f"\nLon: [{component_data['min_lon']:.4f}, {component_data['max_lon']:.4f}]"
+    
+    # Nodos
+    first_nodes = ", ".join(component_data['first_nodes'])
+    last_nodes = ", ".join(component_data['last_nodes']) if component_data['last_nodes'] else "N/A"
+    
+    # Aves
+    first_birds = ", ".join(component_data['first_birds'])
+    last_birds = ", ".join(component_data['last_birds']) if component_data['last_birds'] else "N/A"
+    
+    return [
+        f"Subred {comp_id}",
+        bounds,
+        total,
+        f"Primeros: {first_nodes}\nÚltimos: {last_nodes}",
+        component_data['total_birds'],
+        f"Primeros: {first_birds}\nÚltimos: {last_birds}"
+    ]
 
 def print_req_6(control):
     """
-        Función que imprime la solución del Requerimiento 6 en consola
+    Vista para el Requisito 6: Identificar subpoblaciones aisladas.
     """
-    # TODO: Imprimir el resultado del requerimiento 6
-    pass
+    print("\n" + "="*60)
+    print("REQ. 6: Identificar subpoblaciones aisladas (Componentes)")
+    print("="*60)
+    
+    if control is None or 'graph_water' not in control:
+        print("Error: Debe cargar los datos primero.")
+        return
+    
+    try:
+        result = logic.req_6(control)
+        
+        if "error" in result:
+            print(f"\n[!] {result['error']}")
+            return
+        
+        # Mostrar resumen
+        print(f"\n> {result['message']}")
+        print(f"> Total de subredes hídricas identificadas: {result['total_components']}")
+        
+        # Mostrar las 5 mas grandes
+        if not result['top_5_components']:
+            print("\nNo se encontraron componentes conectados.")
+            return
+        
+        print("\n--- Las 5 Subredes Hídricas Más Grandes ---")
+        
+        headers = [
+            "Subred", 
+            "Límites Geográficos", 
+            "Total Nodos", 
+            "Nodos (Muestra)",
+            "Total Aves",
+            "Aves (Muestra)"
+        ]
+        
+        table_data = []
+        graph_water = control['graph_water']
+        
+        for comp in result['top_5_components']:
+            table_data.append(_format_req6_component(graph_water, comp))
+        
+        print(tabulate(table_data, headers=headers, tablefmt="fancy_grid"))
+        
+    except Exception as e:
+        print(f"Error inesperado: {e}")
+        import traceback
+        traceback.print_exc()
 
-# Se crea la lógica asociado a la vista
+
 control = new_logic()
 
 # main del ejercicio
@@ -518,7 +672,7 @@ def main():
         elif int(inputs) == 5:
             print_req_5(control)
 
-        elif int(inputs) == 5:
+        elif int(inputs) == 6:
             print_req_6(control)
 
         elif int(inputs) == 7:

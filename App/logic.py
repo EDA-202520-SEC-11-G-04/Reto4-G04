@@ -329,15 +329,16 @@ def req_1(catalog, lat_org, lon_org, lat_dest, lon_dest, crane_id):
     
 def req_2(catalog, lat_org, lon_org, lat_dest, lon_dest, radius_km):
     """
-    Ejecuta BFS considerando un radio de área de interés.
+    Detecta los movimientos biologicos considerando un radio de area 
+    de interes utilizando BFS 
     
-    Args:
+    Parametros:
         catalog: Catálogo con los grafos
         lat_org, lon_org: Coordenadas de origen
         lat_dest, lon_dest: Coordenadas de destino
         radius_km: Radio del área de interés en km
     
-    Returns:
+    Retorno:
         dict con resultados o error
     """
     if bfs is None:
@@ -491,19 +492,170 @@ def req_4(catalog, lat_org, lon_org):
         "mst_order": mst_nodes 
     }
 
-def req_5(catalog):
+def req_5(catalog, lat_org, lon_org, lat_dest, lon_dest, graph_type="dist"):
     """
-    Retorna el resultado del requerimiento 5
+    Encuentra el camino más corto representando la ruta migratoria más 
+    eficiente entre dos punto usando Dijkstra.
+    
+    Parametros:
+        catalog: Catálogo con los grafos
+        lat_org, lon_org: Coordenadas de origen
+        lat_dest, lon_dest: Coordenadas de destino
+        graph_type: "dist" para distancias o "water" para fuentes hídricas
+    
+    Retorno:
+        dict con resultados o error
     """
-    # TODO: Modificar el requerimiento 5
-    pass
+    if dijkstra is None:
+        return {"error": "Módulo Dijkstra no disponible."}
+    
+    # Seleccionar el grafo
+    if graph_type == "water":
+        graph_obj = catalog["graph_water"]
+        cost_label = "Distancia Hídrica"
+    else:
+        graph_obj = catalog["graph_dist"]
+        cost_label = "Distancia de Desplazamiento"
+    
+    # Encontrar nodos cercanos
+    start_node, _ = get_closest_node(catalog, lat_org, lon_org)
+    end_node, _ = get_closest_node(catalog, lat_dest, lon_dest)
+    
+    if not start_node or not end_node:
+        return {"error": "No se encontraron nodos cercanos."}
+    
+    # Ejecutar Dijkstra
+    try:
+        dijkstra_result = dijkstra.dijkstra(graph_obj, start_node)
+    except Exception as e:
+        return {"error": f"Error ejecutando Dijkstra: {str(e)}"}
+    
+    # 3. Verificar si existe camino
+    if not dijkstra.has_path_to(end_node, dijkstra_result):
+        return {"error": f"No existe camino entre {start_node} y {end_node}."}
+    
+    path_stack = dijkstra.path_to(end_node, dijkstra_result)
+    
+    # Convertir pila a lista
+    path_ids = []
+    while not st.is_empty(path_stack):
+        path_ids.append(st.pop(path_stack))
+    
+    # Costo total
+    total_cost = dijkstra.dist_to(end_node, dijkstra_result)
+    
+    # 6. Construir detalles
+    path_details, _ = _build_path_details(graph_obj, path_ids)
+    
+    # Contar arcos
+    num_edges = len(path_ids) - 1 if len(path_ids) > 1 else 0
+    
+    return {
+        "message": f"Ruta óptima desde {start_node} hasta {end_node}",
+        "graph_type": graph_type,
+        "cost_label": cost_label,
+        "total_cost": total_cost,
+        "total_nodes": len(path_ids),
+        "total_edges": num_edges,
+        "details": path_details
+    }
 
 def req_6(catalog):
     """
-    Retorna el resultado del requerimiento 6
+    Identifica componentes aislados del nicho con DFS
+    (subredes hidircas)
+    
+    Parametros:
+        catalog: Catálogo con los grafos
+    
+    Retorno:
+        dict con las subredes identificadas
     """
-    # TODO: Modificar el requerimiento 6
-    pass
+    graph_water = catalog["graph_water"]
+    nodes_order = catalog["nodes_creation_order"]
+    
+    if not nodes_order:
+        return {"error": "No hay nodos en el grafo."}
+    
+    # Inicio de estructuras
+    component_map = {}
+    component_number = 0
+    
+    # Recorrer todos los nodos
+    for node_id in nodes_order:
+        if node_id in component_map:
+            continue
+        component_number += 1
+        
+        # Ejecutar DFS
+        search_result = dfs.dfs(graph_water, node_id)
+        
+        for visited_node in search_result['visited'].keys():
+            component_map[visited_node] = component_number
+    
+    # Agrupar nodos
+    components = {}
+    for node_id, comp_num in component_map.items():
+        if comp_num not in components:
+            components[comp_num] = []
+        components[comp_num].append(node_id)
+    
+    # Ordenar componentes por tamaño
+    sorted_components = sorted(
+        components.items(), 
+        key=lambda x: len(x[1]), 
+        reverse=True
+    )
+    
+    # Calcular estadisticas para los 5 mas grandes
+    top_5 = []
+    
+    for comp_id, node_list in sorted_components[:5]:
+        min_lat = min_lon = float('inf')
+        max_lat = max_lon = float('-inf')
+        unique_birds = set()
+        
+        for node_id in node_list:
+            vertex_entry = mp.get(graph_water['vertices'], node_id)
+            if not vertex_entry:
+                continue
+            
+            info = vertex_entry['value']
+            
+            # Actualizar límites
+            min_lat = min(min_lat, info['lat'])
+            max_lat = max(max_lat, info['lat'])
+            min_lon = min(min_lon, info['lon'])
+            max_lon = max(max_lon, info['lon'])
+            
+            for bird_id in info['bird_ids']:
+                unique_birds.add(bird_id)
+        
+        # Primeros y ultimos 3
+        first_3 = node_list[:3]
+        last_3 = node_list[-3:] if len(node_list) > 3 else []
+        
+        birds_list = list(unique_birds)
+        
+        top_5.append({
+            "component_id": comp_id,
+            "total_nodes": len(node_list),
+            "min_lat": min_lat,
+            "max_lat": max_lat,
+            "min_lon": min_lon,
+            "max_lon": max_lon,
+            "first_nodes": first_3,
+            "last_nodes": last_3,
+            "total_birds": len(unique_birds),
+            "first_birds": birds_list[:3],
+            "last_birds": birds_list[-3:] if len(birds_list) > 3 else []
+        })
+    
+    return {
+        "message": f"Se identificaron {len(components)} subredes hídricas",
+        "total_components": len(components),
+        "top_5_components": top_5
+    }
 
 
 # Funciones para medir tiempos de ejecucion
