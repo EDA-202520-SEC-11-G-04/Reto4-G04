@@ -91,20 +91,16 @@ def dist_to(vertex, search):
 
 def path_to(vertex, search):
     """
-    Retorna el camino desde source hasta vertex como una lista.
+    Retorna el camino desde source hasta vertex
     """
     if not has_path_to(vertex, search):
         return None
     
-    path = []
-    current = vertex
+    path_stack = st.new_stack()
     
-    # Reconstruir camino desde vertex hasta source
+    current = vertex
     while current is not None:
-        path.append(current)
+        st.push(path_stack, current)
         current = search["edge_from"].get(current)
     
-    # Invertir
-    path.reverse()
-    
-    return path
+    return path_stack
