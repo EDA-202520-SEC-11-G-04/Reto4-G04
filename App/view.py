@@ -26,15 +26,15 @@ def _format_node_row(graph, key):
     """
     Prépare une ligne pour le tableau tabulate (pour l'affichage en liste).
     """
-    # 1. Récupérer l'entrée dans la Map des sommets
+    # Récupérer l'entrée dans la Map des sommets
     vertex_entry = mp.get(graph['vertices'], key)
     if not vertex_entry:
         return ["Erreur", "", "", "", "", ""]
     
-    # 2. Récupérer le payload (dictionnaire d'info)
+    # Récupérer le payload (dictionnaire d'info)
     info = vertex_entry['value']
     
-    # 3. Formatage
+    # Formatage
     pos_str = f"({info['lat']:.5f}, {info['lon']:.5f})"
     date_str = info['creation_time'].strftime("%Y-%m-%d %H:%M:%S")
     
@@ -56,17 +56,12 @@ def _format_node_row(graph, key):
         f"{avg_water:.4f}"
     ]
 
-# ==============================================================================
-# FONCTIONS D'AFFICHAGE PRINCIPALES
-# ==============================================================================
-
 def print_load_report(catalog):
     """
     Affiche le rapport complet de chargement (Stats + Tableaux des nœuds).
-    Correspond aux Figures 1 et 2 du PDF.
     """
     if not catalog or 'stats' not in catalog:
-        print("Erreur : Catalogue vide ou invalide.")
+        print("Error : Catalog vacia o malo.")
         return
 
     stats = catalog['stats']
@@ -74,7 +69,7 @@ def print_load_report(catalog):
     # On utilise graph_dist pour lire les infos (ce sont les mêmes nœuds que graph_water)
     graph = catalog['graph_dist']
 
-    # --- PARTIE 1 : STATISTIQUES ---
+    # Partie 1 : Stats
     print("\n" + "="*60)
     print("CARGA DE DATOS")
     print("="*60)
@@ -88,7 +83,7 @@ def print_load_report(catalog):
     print(tabulate(stats_data, tablefmt="plain"))
     print("="*60)
 
-    # --- PARTIE 2 : TABLEAUX DES NOEUDS ---
+    # Partie 2 : Tableaux des noeuds
     print("\nDETALLE DE NODOS (VERTICES)")
     
     headers = ["ID", "Posición (lat, lon)", "Fecha Creación", "Grullas", "Eventos", "Dist. Agua (km)"]
@@ -99,7 +94,7 @@ def print_load_report(catalog):
         first_rows = [_format_node_row(graph, key) for key in nodes_order[:5]]
         print(tabulate(first_rows, headers=headers, tablefmt="fancy_grid"))
     else:
-        print("Aucun nœud.")
+        print("ningun nodo.")
 
     # 5 Derniers Nœuds
     if len(nodes_order) > 5:
@@ -116,7 +111,7 @@ def print_data(control, node_id):
     Utile pour afficher un résultat de recherche précis.
     """
     if not control or 'graph_dist' not in control:
-        print("Catalogue vide.")
+        print("Catalog vacia")
         return
     
     graph = control['graph_dist']
@@ -125,7 +120,7 @@ def print_data(control, node_id):
     entry = mp.get(graph['vertices'], node_id)
     
     if not entry:
-        print(f"Erreur : Le nœud avec l'ID '{node_id}' n'existe pas.")
+        print(f"Error : El nodo con id '{node_id}' no existe.")
         return
     
     # Extraction des données
@@ -147,14 +142,9 @@ def print_data(control, node_id):
     print("\n--- Detalles del Nodo ---")
     print(tabulate(data, headers=["Atributo", "Valor"], tablefmt="fancy_grid"))
 
-# ==============================================================================
-# MENU / CHARGEMENT
-# ==============================================================================
 
 def load_data(control):
-    """
-    Fonction de la vue qui appelle la logique et affiche le résultat.
-    """
+
     filename = input("Nombre del archivo a cargar (ej: Data/1000_cranes_mongolia_small.csv): ")
     try:
         control = logic.load_data(control, filename)
@@ -163,13 +153,10 @@ def load_data(control):
         if control:
             print_load_report(control)
         else:
-            print("Erreur lors du chargement des données.")
+            print("Error en la carga de datos.")
             
     except Exception as e:
-        print(f"Une erreur est survenue : {e}")
-        # Optionnel: afficher la trace complète pour le débogage
-        # import traceback
-        # traceback.print_exc()
+        print(f"Un error paso : {e}")
         
     return control
 
@@ -205,7 +192,7 @@ def print_req_1(control):
         return
 
     try:
-        # 1. Inputs Utilisateur
+        # Inputs Utilisateur
         print("Ingrese coordenadas (Deje vacío para usar valores por defecto):")
         
         l_org = input("Latitud Origen (ej: 48.0): ")
@@ -223,7 +210,7 @@ def print_req_1(control):
         crane = input("ID Individuo (ej: 6235): ")
         crane_id = crane if crane else "Unknown"
 
-        # 2. Appel Logique
+        # Appel Logique
         result = logic.req_1(
             control, 
             lat_org, lon_org, 
@@ -231,17 +218,17 @@ def print_req_1(control):
             crane_id
         )
 
-        # 3. Gestion Erreur
+        # Gestion Erreur
         if "error" in result:
             print(f"\n[!] {result['error']}")
             return
 
-        # 4. Affichage Résumé
+        # Affichage Résumé
         print(f"\n> {result['message']}")
         print(f"> Distancia total estimada:   {result['total_dist']:.4f} km")
         print(f"> Total de puntos en camino:  {result['total_steps']}")
         
-        # 5. Préparation Tableau (5 premiers / 5 derniers)
+        # Préparation Tableau (5 premiers / 5 derniers)
         details = result['details']
         headers = ["ID Punto", "Posición", "Num. Indiv.", "Muestra IDs", "Dist. Sig. (km)"]
         
@@ -266,28 +253,7 @@ def print_req_1(control):
     except Exception as e:
         print(f"Error inesperado: {e}")
 
-# ==============================================================================
-# MENU / CHARGEMENT
-# ==============================================================================
 
-def load_data(control):
-    """
-    Fonction de la vue qui appelle la logique et affiche le résultat.
-    """
-    filename = input("Nombre del archivo a cargar (ej: Data/1000_cranes_mongolia_small.csv): ")
-    
-    try:
-        control = logic.load_data(control, filename)
-        
-        if control:
-            print_load_report(control)
-        else:
-            print("Erreur lors du chargement des données (Catalogue vide).")
-            
-    except Exception as e:
-        print(f"Une erreur est survenue : {e}")
-        
-    return control
 
 
 def _format_req2_row(detail_dict):
@@ -387,7 +353,7 @@ def print_req_3(control):
 
 def _format_req4_row(graph, node_id):
     """
-    Helper pour Req 4 (Corridors Prim).
+    Helper pour Req 4 (Prim).
     Colonnes : ID, Pos, Nb Grullas, Liste IDs (3 premiers/3 derniers).
     """
     vertex_entry = mp.get(graph['vertices'], node_id)
@@ -438,13 +404,13 @@ def print_req_4(control):
             print(f"\n[!] {res['error']}")
             return
 
-        # Affichage Résumé [cite: 345-347]
+        # Affichage Résumé 
         print(f"\n> {res['message']}")
         print(f"> Total puntos en la ruta (MST):   {res['total_nodes']}")
         print(f"> Total individuos únicos:         {res['total_individuals']}")
         print(f"> Distancia Hídrica Total (Cost):  {res['total_cost']:.4f} m")
         
-        # Tableau Détaillé [cite: 348]
+        # Tableau Détaillé
         mst_ids = res['mst_order']
         graph_water = control['graph_water']
         

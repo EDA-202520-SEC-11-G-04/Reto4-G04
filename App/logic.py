@@ -31,8 +31,6 @@ def parse_timestamp(timestamp_str):
     except ValueError:
         return datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
 
-# --- SOUS-FONCTIONS DE CHARGEMENT ---
-
 def _load_raw_events(filename):
     """
     Étape 1 : Lit le CSV, parse les types et trie par temps.
@@ -82,13 +80,13 @@ def _build_nodes(catalog, raw_events):
     for ev in raw_events:
         assigned_key = None
         
-        # 1. Nettoyer les nœuds actifs trop vieux (> 3h)
+        # Nettoyer les nœuds actifs trop vieux (> 3h)
         active_nodes_info = [
             n for n in active_nodes_info 
             if (ev['ts'] - n['last_update']).total_seconds() <= 3 * 3600
         ]
 
-        # 2. Chercher un nœud existant compatible
+        # Chercher un nœud existant compatible
         for node_info in active_nodes_info:
             dist = haversine(ev['lat'], ev['lon'], node_info['lat'], node_info['lon'])
             if dist < 3.0:
@@ -106,7 +104,7 @@ def _build_nodes(catalog, raw_events):
                     mp.put(event_map, ev['id'], assigned_key)
                     break
         
-        # 3. Créer un nouveau nœud
+        # Créer un nouveau nœud
         if assigned_key is None:
             new_key = ev['id']
             new_info = {
@@ -121,7 +119,7 @@ def _build_nodes(catalog, raw_events):
             graph.insert_vertex(g_water, new_key, new_info)
             mp.put(event_map, ev['id'], new_key)
             
-            # AJOUT IMPORTANT: Sauvegarder l'ordre de création
+            # Sauvegarder l'ordre de création
             nodes_order.append(new_key)
             
             active_nodes_info.append(new_info)
@@ -136,7 +134,7 @@ def _build_edges(catalog, raw_events):
     g_dist = catalog["graph_dist"]
     g_water = catalog["graph_water"]
     
-    # 1. Grouper par grue
+    #Grouper par grue
     cranes_paths = {}
     for ev in raw_events:
         cranes_paths.setdefault(ev['tag'], []).append(ev)
@@ -144,7 +142,7 @@ def _build_edges(catalog, raw_events):
     edges_dist_weights = {}
     edges_water_weights = {}
 
-    # 2. Analyser les trajets
+    #Analyser les trajets
     for tag, path in cranes_paths.items():
         prev_node_key = None
         
@@ -171,7 +169,7 @@ def _build_edges(catalog, raw_events):
 
             prev_node_key = curr_node_key
 
-    # 3. Ajouter les arcs
+    # Ajouter les arcs
     count = 0
     for (u, v_key), weights in edges_dist_weights.items():
         graph.add_edge(g_dist, u, v_key, sum(weights) / len(weights))
@@ -181,7 +179,6 @@ def _build_edges(catalog, raw_events):
         
     return len(cranes_paths), count
 
-# --- FONCTION PRINCIPALE ---
 
 def new_logic():
     """Initialise le catalogue."""
@@ -189,7 +186,7 @@ def new_logic():
         "graph_dist": graph.new_graph(5000),
         "graph_water": graph.new_graph(5000),
         "event_to_node": mp.new_map(25000, 0.5),
-        "nodes_creation_order": [], # Liste ajoutée pour conserver l'ordre
+        "nodes_creation_order": [],
         "stats": {}
     }
 
@@ -212,7 +209,6 @@ def load_data(catalog, filename):
     
     elapsed = (time.perf_counter() - start_time) * 1000
     
-    # Note: On a supprimé _print_report d'ici pour le laisser à la Vue
     print(f"Temps d'exécution (Logique): {elapsed:.2f} ms")
     
     return catalog
@@ -230,7 +226,6 @@ def get_closest_node(catalog, target_lat, target_lon):
     min_dist = float('inf')
     
     for node_id in nodes_order:
-        # On accède aux données via mp.get sur le dictionnaire 'vertices'
         vertex_entry = mp.get(g_dist['vertices'], node_id)
         if not vertex_entry: continue
         
@@ -246,13 +241,11 @@ def get_closest_node(catalog, target_lat, target_lon):
 def _build_path_details(graph_data, path_ids):
     """
     Construit les détails du chemin.
-    CORRECTION : paramètre 'graph_data' pour éviter le shadowing de 'graph'.
     """
     details = []
     total_dist = 0.0
     
     for i, node_id in enumerate(path_ids):
-        # Accès sécurisé via mp.get
         vertex_entry = mp.get(graph_data['vertices'], node_id)
         if not vertex_entry: continue
 
@@ -288,27 +281,26 @@ def req_1(catalog, lat_org, lon_org, lat_dest, lon_dest, crane_id):
     if dfs is None:
         return {"error": "DFS module not loaded."}
         
-    graph_obj = catalog["graph_dist"] # Ceci est un DICTIONNAIRE
+    graph_obj = catalog["graph_dist"] 
     
-    # 1. Trouver les nœuds
+    # Trouver les nœuds
     start_node, dist_start = get_closest_node(catalog, lat_org, lon_org)
     end_node, dist_end = get_closest_node(catalog, lat_dest, lon_dest)
     
     if not start_node or not end_node:
         return {"error": "No se encontraron nodos cercanos."}
 
-    # 2. Exécuter DFS
-    # Le module 'dfs' doit gérer le fait que graph_obj est un dict
-    # S'il utilise G.adjacents(graph_obj), ça devrait aller si G est correct.
+    # Exécuter DFS
+
     search_result = dfs.dfs(graph_obj, start_node)
     
-    # 3. Récupérer le chemin
+    #Récupérer le chemin
     path_ids = dfs.path_to(search_result, end_node)
     
     if path_ids is None:
         return {"error": f"No existe camino DFS entre {start_node} y {end_node}."}
     
-    # 4. Détails
+    # Détails
     path_details, total_dist = _build_path_details(graph_obj, path_ids)
     
     vertex_start = mp.get(graph_obj['vertices'], start_node)
@@ -414,15 +406,15 @@ def req_4(catalog, lat_org, lon_org):
     
     graph_water = catalog["graph_water"]
     
-    # 1. Identifier le départ
+    #Identifier le départ
     start_node, _ = get_closest_node(catalog, lat_org, lon_org)
     if not start_node:
         return {"error": "No se encontró un punto de inicio cercano."}
         
-    # 2. Exécuter Prim
+    # Exécuter Prim
     mst_struct = prim.prim_mst(graph_water, start_node)
     
-    # 3. Récupérer les résultats
+    # Récupérer les résultats
     marked_map = mst_struct['marked']
     keys_col = mp.key_set(marked_map)
     
@@ -435,13 +427,13 @@ def req_4(catalog, lat_org, lon_org):
     if len(mst_nodes) <= 1:
         return {"error": "Red no viable (aislada)."}
 
-    # 4. Calculs Stats
+    # Calculs Stats
     total_cost_meters = 0.0
     dist_map = mst_struct['dist_to']
     unique_birds = set()
     
     for nid in mst_nodes:
-        # --- A. COÛT (Distance) ---
+        # Cout Distance
         d_val = mp.get(dist_map, nid)
         
         # Sécurisation si d_val est encapsulé
@@ -458,7 +450,7 @@ def req_4(catalog, lat_org, lon_org):
         if val != float('inf'):
             total_cost_meters += val
             
-        # --- B. OISEAUX (Robustesse maximale) ---
+        # Oiseaux (Robustesse maximale)
         vertex_data = mp.get(graph_water['vertices'], nid)
         
         # On cherche 'bird_ids' à différents niveaux de profondeur
@@ -468,11 +460,11 @@ def req_4(catalog, lat_org, lon_org):
             # Niveau 1 : Directement dans le sommet ?
             if 'bird_ids' in vertex_data:
                 found_birds = vertex_data['bird_ids']
-            # Niveau 2 : Dans 'value' ? (Structure standard)
+            # Niveau 2 : Dans value ?
             elif 'value' in vertex_data and isinstance(vertex_data['value'], dict):
                 if 'bird_ids' in vertex_data['value']:
                     found_birds = vertex_data['value']['bird_ids']
-                # Niveau 3 : Dans 'value'['value'] ? (Cas "Entry")
+                # Niveau 3 : Dans value['value'] ?
                 elif 'value' in vertex_data['value'] and isinstance(vertex_data['value']['value'], dict):
                     if 'bird_ids' in vertex_data['value']['value']:
                         found_birds = vertex_data['value']['value']['bird_ids']
@@ -481,14 +473,14 @@ def req_4(catalog, lat_org, lon_org):
             for b in found_birds:
                 unique_birds.add(b)
                 
-    # 5. Conversion explicite en KM
+    # Conversion explicite en KM
     total_cost_km = total_cost_meters / 1000.0
     
     return {
         "message": f"Corredor (Prim) desde {start_node}",
         "total_nodes": len(mst_nodes),
         "total_individuals": len(unique_birds),
-        "total_cost": total_cost_km, # On retourne bien des KM
+        "total_cost": total_cost_km,
         "mst_order": mst_nodes 
     }
 
