@@ -516,13 +516,13 @@ def req_5(catalog, lat_org, lon_org, lat_dest, lon_dest, graph_type="dist"):
     if not start_node or not end_node:
         return {"error": "No se encontraron nodos cercanos."}
     
-    # Ejecutar Dijkstra
+    # Ejecutar Dijsktra
     try:
         dijkstra_result = dijkstra.dijkstra(graph_obj, start_node)
     except Exception as e:
         return {"error": f"Error ejecutando Dijkstra: {str(e)}"}
     
-    # 3. Verificar si existe camino
+    # Verificar si existe camino
     if not dijkstra.has_path_to(end_node, dijkstra_result):
         return {"error": f"No existe camino entre {start_node} y {end_node}."}
     
