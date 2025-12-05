@@ -43,7 +43,7 @@ def _load_raw_events(filename):
             for row in reader:
                 if not row: continue
                 try:
-                    # [cite_start]Extraction et parsing [cite: 122-129]
+                    # Extraction et parsing 
                     w_txt = row.get('comments', '0')
                     w_dist = float(w_txt.split()[0]) if w_txt else 0.0
                     
@@ -278,8 +278,6 @@ def req_1(catalog, lat_org, lon_org, lat_dest, lon_dest, crane_id):
     """
     Exécute DFS et retourne les résultats.
     """
-    if dfs is None:
-        return {"error": "DFS module not loaded."}
         
     graph_obj = catalog["graph_dist"] 
     
@@ -400,9 +398,7 @@ def req_3(catalog):
 def req_4(catalog, lat_org, lon_org):
     """
     Exécute Prim pour Req 4.
-    CORRECTION : Gestion robuste de la profondeur des dictionnaires et unité km.
     """
-    if prim is None: return {"error": "Module Prim manquant."}
     
     graph_water = catalog["graph_water"]
     
